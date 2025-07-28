@@ -268,21 +268,68 @@ function cleanupEventListeners() {
 
 function attachRecordingListeners() {
     if (window._recordingListenersAttached) return;
+    
+    // ✅ ENHANCED: Core interaction events
     document.addEventListener('click', handleRecordedClick, true);
     document.addEventListener('input', handleRecordedInput, true);
-    document.addEventListener('change', handleRecordedInput, true);
+    document.addEventListener('change', handleRecordedChange, true);
     document.addEventListener('keydown', handleRecordedKeyDown, true);
+    
+    // ✅ ENHANCED: Additional interaction events for comprehensive recording
+    document.addEventListener('dblclick', handleRecordedDoubleClick, true);
+    document.addEventListener('contextmenu', handleRecordedRightClick, true);
+    document.addEventListener('focus', handleRecordedFocus, true);
+    document.addEventListener('blur', handleRecordedBlur, true);
+    document.addEventListener('submit', handleRecordedSubmit, true);
+    document.addEventListener('reset', handleRecordedReset, true);
+    
+    // ✅ ENHANCED: Mouse events for drag and drop and hover interactions
+    document.addEventListener('mousedown', handleRecordedMouseDown, true);
+    document.addEventListener('mouseup', handleRecordedMouseUp, true);
+    document.addEventListener('mouseover', handleRecordedMouseOver, true);
+    document.addEventListener('mouseout', handleRecordedMouseOut, true);
+    
+    // ✅ ENHANCED: Drag and drop events
+    document.addEventListener('dragstart', handleRecordedDragStart, true);
+    document.addEventListener('dragend', handleRecordedDragEnd, true);
+    document.addEventListener('drop', handleRecordedDrop, true);
+    
+    // ✅ ENHANCED: Touch events for mobile compatibility
+    document.addEventListener('touchstart', handleRecordedTouchStart, true);
+    document.addEventListener('touchend', handleRecordedTouchEnd, true);
+    
+    // ✅ ENHANCED: Scroll events
+    document.addEventListener('scroll', handleRecordedScroll, true);
+    
     window._recordingListenersAttached = true;
-    console.log('🎙️ Recording listeners attached');
+    console.log('🎙️ Enhanced recording listeners attached');
 }
 
 function detachRecordingListeners() {
+    // ✅ ENHANCED: Remove all event listeners
     document.removeEventListener('click', handleRecordedClick, true);
     document.removeEventListener('input', handleRecordedInput, true);
-    document.removeEventListener('change', handleRecordedInput, true);
+    document.removeEventListener('change', handleRecordedChange, true);
     document.removeEventListener('keydown', handleRecordedKeyDown, true);
+    document.removeEventListener('dblclick', handleRecordedDoubleClick, true);
+    document.removeEventListener('contextmenu', handleRecordedRightClick, true);
+    document.removeEventListener('focus', handleRecordedFocus, true);
+    document.removeEventListener('blur', handleRecordedBlur, true);
+    document.removeEventListener('submit', handleRecordedSubmit, true);
+    document.removeEventListener('reset', handleRecordedReset, true);
+    document.removeEventListener('mousedown', handleRecordedMouseDown, true);
+    document.removeEventListener('mouseup', handleRecordedMouseUp, true);
+    document.removeEventListener('mouseover', handleRecordedMouseOver, true);
+    document.removeEventListener('mouseout', handleRecordedMouseOut, true);
+    document.removeEventListener('dragstart', handleRecordedDragStart, true);
+    document.removeEventListener('dragend', handleRecordedDragEnd, true);
+    document.removeEventListener('drop', handleRecordedDrop, true);
+    document.removeEventListener('touchstart', handleRecordedTouchStart, true);
+    document.removeEventListener('touchend', handleRecordedTouchEnd, true);
+    document.removeEventListener('scroll', handleRecordedScroll, true);
+    
     window._recordingListenersAttached = false;
-    console.log('🛑 Recording listeners detached');
+    console.log('🛑 Enhanced recording listeners detached');
 }
 
 
@@ -591,40 +638,63 @@ function getStableXPathForElement(el) {
     return getAbsoluteXPath(el); // getAbsoluteXPath does not use changing attributes
 }
 
+// ✅ ADD MISSING getReliableXPath FUNCTION
+function getReliableXPath(allPossibleXPaths) {
+    if (!allPossibleXPaths) return '';
+    
+    // Priority order: uniqueXPaths > formXPaths > specializedXPaths > category-based XPaths
+    if (allPossibleXPaths.uniqueXPaths && allPossibleXPaths.uniqueXPaths.length > 0) {
+        return allPossibleXPaths.uniqueXPaths[0].xpath;
+    }
+    
+    if (allPossibleXPaths.formXPaths && allPossibleXPaths.formXPaths.length > 0) {
+        return allPossibleXPaths.formXPaths[0].xpath;
+    }
+    
+    if (allPossibleXPaths.specializedXPaths && allPossibleXPaths.specializedXPaths.length > 0) {
+        return allPossibleXPaths.specializedXPaths[0].xpath;
+    }
+    
+    // Try category-based XPaths in priority order
+    const categories = [
+        'classBased', 'roleBased', 'textValue', 'classRoleText', 
+        'parentContext', 'verticalRelative', 'horizontalRelative', 'nearRelative'
+    ];
+    
+    for (const category of categories) {
+        if (allPossibleXPaths.xpaths && 
+            allPossibleXPaths.xpaths[category] && 
+            allPossibleXPaths.xpaths[category].length > 0) {
+            return allPossibleXPaths.xpaths[category][0].xpath;
+        }
+    }
+    
+    // Fallback to basic XPath from elementInfo
+    if (allPossibleXPaths.elementInfo && allPossibleXPaths.elementInfo.xpath) {
+        return allPossibleXPaths.elementInfo.xpath;
+    }
+    
+    return '';
+}
 
+// ✅ ENHANCED handleRecordedClick with better element type detection
 function handleRecordedClick(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
 
     const el = event.target;
     const tag = el.tagName.toLowerCase();
     const type = el.getAttribute('type');
+    const role = el.getAttribute('role');
+    const classList = Array.from(el.classList || []);
+    
+    // Get comprehensive XPath collection
     const allPossibleXPaths = getAllXPaths(el);
-
-    let reliableXpath = '';
-    if (allPossibleXPaths?.uniqueXPaths?.length) {
-        reliableXpath = allPossibleXPaths.uniqueXPaths[0]?.xpath || '';
-    } else if (allPossibleXPaths?.formXPaths?.length) {
-        reliableXpath = allPossibleXPaths.formXPaths[0]?.xpath || '';
-    } else if (allPossibleXPaths?.specializedXPaths?.length) {
-        reliableXpath = allPossibleXPaths.specializedXPaths[0]?.xpath || '';
-    } else if (allPossibleXPaths?.xpaths) {
-        const categories = ['classBased', 'roleBased', 'textValue', 'classRoleText', 'parentContext', 'verticalRelative', 'horizontalRelative', 'nearRelative'];
-        for (const category of categories) {
-            if (allPossibleXPaths.xpaths[category]?.length) {
-                reliableXpath = allPossibleXPaths.xpaths[category][0]?.xpath;
-                break;
-            }
-        }
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath || reliableXpath.includes('[object Object]')) {
+        console.warn('Could not generate reliable XPath for element:', el);
+        return;
     }
-
-    if (!reliableXpath && allPossibleXPaths?.elementInfo?.xpath) {
-        reliableXpath = allPossibleXPaths.elementInfo.xpath;
-    } else if (!reliableXpath) {
-        reliableXpath = getSmartLocator(el).replace('xpath=', '');
-    }
-
-    reliableXpath = String(reliableXpath).trim();
-    if (!reliableXpath || reliableXpath.includes('[object Object]')) return;
 
     const step = {
         type: '',
@@ -633,30 +703,110 @@ function handleRecordedClick(event) {
         inputType: type || '',
         timestamp: Date.now(),
         name: el.name || '',
-        elementInfo: allPossibleXPaths.elementInfo
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths // ✅ Store ALL XPaths for better analysis
     };
 
-    // Type-specific detection
-    if (tag === 'input' && type === 'radio') {
-        step.type = 'radio';
-        step.value = el.value || el.getAttribute('aria-label') || el.getAttribute('label');
-    } else if (tag === 'span' && el.classList.contains('oxd-switch-input')) {
-        step.type = 'toggle';
-        step.value = el.getAttribute('aria-checked') === 'true' ? 'On' : 'Off';
-    } else if (tag === 'input' && type === 'checkbox') {
-        step.type = 'checkbox';
-        step.value = el.checked ? 'Checked' : 'Unchecked';
+    // ✅ ENHANCED type-specific detection with more element types
+    if (tag === 'input') {
+        switch (type) {
+            case 'radio':
+                step.type = 'radio';
+                step.value = el.value || el.getAttribute('aria-label') || el.getAttribute('label');
+                break;
+            case 'checkbox':
+                step.type = 'checkbox';
+                step.value = el.checked ? 'Checked' : 'Unchecked';
+                break;
+            case 'submit':
+                step.type = 'submit';
+                step.value = el.value || 'Submit';
+                break;
+            case 'button':
+                step.type = 'button';
+                step.value = el.value || el.textContent.trim();
+                break;
+            case 'file':
+                step.type = 'file_upload';
+                step.value = 'File Upload';
+                break;
+            case 'range':
+                step.type = 'slider';
+                step.value = el.value || el.getAttribute('value') || '';
+                break;
+            case 'color':
+                step.type = 'color_picker';
+                step.value = el.value || '';
+                break;
+            case 'date':
+            case 'datetime-local':
+            case 'time':
+                step.type = 'date_time';
+                step.value = el.value || '';
+                break;
+            default:
+                // For text, email, password, number, etc.
+                step.type = 'input_click';
+                step.value = '';
+        }
+    } else if (tag === 'button') {
+        step.type = 'button';
+        step.value = el.textContent.trim() || el.value || el.getAttribute('aria-label') || '';
     } else if (tag === 'select') {
         step.type = 'dropdown';
         const selectedOption = el.options[el.selectedIndex];
-        step.value = selectedOption?.text || selectedOption?.value;
+        step.value = selectedOption?.text || selectedOption?.value || '';
+    } else if (tag === 'textarea') {
+        step.type = 'textarea_click';
+        step.value = '';
+    } else if (tag === 'a') {
+        step.type = 'link';
+        step.value = el.textContent.trim() || el.getAttribute('href') || '';
+    } else if (tag === 'img') {
+        step.type = 'image';
+        step.value = el.getAttribute('alt') || el.getAttribute('title') || '';
+    } else if (tag === 'span' || tag === 'div') {
+        // Check for special interactive elements
+        if (classList.includes('oxd-switch-input') || role === 'switch') {
+            step.type = 'toggle';
+            step.value = el.getAttribute('aria-checked') === 'true' ? 'On' : 'Off';
+        } else if (role === 'button' || classList.some(cls => cls.includes('button') || cls.includes('btn'))) {
+            step.type = 'button';
+            step.value = el.textContent.trim() || el.getAttribute('aria-label') || '';
+        } else if (role === 'tab') {
+            step.type = 'tab';
+            step.value = el.textContent.trim() || el.getAttribute('aria-label') || '';
+        } else if (role === 'menuitem') {
+            step.type = 'menu_item';
+            step.value = el.textContent.trim() || '';
+        } else {
+            step.type = 'click';
+            step.value = el.textContent.trim() || '';
+        }
+    } else if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+        step.type = 'heading';
+        step.value = el.textContent.trim();
+    } else if (tag === 'p') {
+        step.type = 'paragraph';
+        step.value = el.textContent.trim();
+    } else if (['ul', 'ol', 'li'].includes(tag)) {
+        step.type = 'list_item';
+        step.value = el.textContent.trim();
+    } else if (tag === 'table' || tag === 'tr' || tag === 'td' || tag === 'th') {
+        step.type = 'table_element';
+        step.value = el.textContent.trim();
+    } else if (role) {
+        // Handle ARIA roles
+        step.type = `aria_${role}`;
+        step.value = el.textContent.trim() || el.getAttribute('aria-label') || '';
     } else {
         step.type = 'click';
+        step.value = el.textContent.trim() || '';
     }
 
     window.advancedXPathInspector.state.recordedSteps.push(step);
     saveStepsToStorage();
-    console.log('✅ Recorded smart click step:', step);
+    console.log('✅ Recorded enhanced click step:', step);
 }
 
 
@@ -666,23 +816,39 @@ function handleSelectChange(e) {
   const el = e.target;
   const selectedOption = el.options[el.selectedIndex];
   const value = selectedOption?.text || selectedOption?.value || '';
+  const selectedIndex = el.selectedIndex;
 
   const allPossibleXPaths = getAllXPaths(el);
-  const xpath = getReliableXPath(allPossibleXPaths); // your method (or use same logic as click)
-  if (!xpath) return;
+  const xpath = getReliableXPath(allPossibleXPaths);
+  
+  if (!xpath) {
+    console.warn('Could not generate XPath for select element:', el);
+    return;
+  }
 
   const step = {
     type: 'dropdown',
     xpath: `xpath=${xpath}`,
     tag: el.tagName.toLowerCase(),
     value,
+    selectedIndex,
+    optionCount: el.options.length,
     timestamp: Date.now(),
-    elementInfo: allPossibleXPaths.elementInfo
+    elementInfo: allPossibleXPaths.elementInfo,
+    allXPaths: allPossibleXPaths, // ✅ Store ALL XPaths
+    // ✅ Additional select-specific information
+    multiple: el.multiple || false,
+    size: el.size || 1,
+    allOptions: Array.from(el.options).map(opt => ({
+      text: opt.text,
+      value: opt.value,
+      selected: opt.selected
+    }))
   };
 
   window.advancedXPathInspector.state.recordedSteps.push(step);
   saveStepsToStorage();
-  console.log('✅ Recorded dropdown step:', step);
+  console.log('✅ Enhanced dropdown step:', step);
 }
 
 
@@ -698,35 +864,19 @@ function handleRecordedInput(event) {
     if (type === 'checkbox' || type === 'radio' || type === 'submit' || type === 'button') return;
 
     const allPossibleXPaths = getAllXPaths(target);
-    let reliableXpathForStep = ''; // This will be the XPath used in the recorded step
+    let reliableXpathForStep = getReliableXPath(allPossibleXPaths); // Use the new function
     let stableXPathForDebounce = getStableXPathForElement(target); // This XPath is for debouncing/filtering
 
-    // Use similar logic as handleRecordedClick to pick the best XPath for the *step*
-    if (allPossibleXPaths && allPossibleXPaths.uniqueXPaths && allPossibleXPaths.uniqueXPaths.length > 0) {
-        reliableXpathForStep = allPossibleXPaths.uniqueXPaths[0].xpath;
-    } else if (allPossibleXPaths && allPossibleXPaths.formXPaths && allPossibleXPaths.formXPaths.length > 0) {
-        reliableXpathForStep = allPossibleXPaths.formXPaths[0].xpath;
-    } else if (allPossibleXPaths && allPossibleXPaths.specializedXPaths && allPossibleXPaths.specializedXPaths.length > 0) {
-        reliableXpathForStep = allPossibleXPaths.specializedXPaths[0].xpath;
-    } else if (allPossibleXPaths && allPossibleXPaths.xpaths) {
-        const categories = ['classBased', 'roleBased', 'textValue', 'classRoleText', 'parentContext', 'verticalRelative', 'horizontalRelative', 'nearRelative'];
-        for (const category of categories) {
-            if (allPossibleXPaths.xpaths[category] && allPossibleXPaths.xpaths[category].length > 0) {
-                reliableXpathForStep = allPossibleXPaths.xpaths[category][0].xpath;
-                break;
-            }
-        }
-    }
-
-    // Fallback to basic XPath if all else fails for the step
-    if (!reliableXpathForStep && allPossibleXPaths?.elementInfo?.xpath) {
-         reliableXpathForStep = allPossibleXPaths.elementInfo.xpath;
-    } else if (!reliableXpathForStep) {
+    // Fallback if getReliableXPath returns empty
+    if (!reliableXpathForStep) {
         reliableXpathForStep = getSmartLocator(target).replace('xpath=', ''); // Last resort for step
     }
 
     reliableXpathForStep = String(reliableXpathForStep).trim();
-    if (!reliableXpathForStep) return;
+    if (!reliableXpathForStep) {
+        console.warn('Could not generate XPath for input element:', target);
+        return;
+    }
 
     const stepXpath = `xpath=${reliableXpathForStep}`; // Prefix for the actual step
 
@@ -739,6 +889,8 @@ function handleRecordedInput(event) {
 
     inputDebounceTimers[debounceKey] = setTimeout(() => {
         const value = target.value;
+        const placeholder = target.getAttribute('placeholder') || '';
+        const maxLength = target.getAttribute('maxlength') || '';
 
         // Remove previous input step for the same *stable element*
         window.advancedXPathInspector.state.recordedSteps = window.advancedXPathInspector.state.recordedSteps.filter(
@@ -750,14 +902,19 @@ function handleRecordedInput(event) {
             xpath: stepXpath, // Use the more reliable XPath for the step
             value,
             tag: target.tagName.toLowerCase(),
+            inputType: type || 'text',
+            placeholder,
+            maxLength,
             timestamp: Date.now(),
-            stableXPathForDebounce: debounceKey // Store the stable XPath for future filtering
+            stableXPathForDebounce: debounceKey, // Store the stable XPath for future filtering
+            elementInfo: allPossibleXPaths.elementInfo,
+            allXPaths: allPossibleXPaths // ✅ Store ALL XPaths for comprehensive analysis
         };
 
         window.advancedXPathInspector.state.recordedSteps.push(step);
         saveStepsToStorage();
 
-        console.log('📝 Debounced input step:', step);
+        console.log('📝 Enhanced debounced input step:', step);
 
         delete inputDebounceTimers[debounceKey];
     }, 800);
@@ -771,7 +928,19 @@ function handleRadioClick(e) {
   const name = el.name || el.getAttribute('name') || '';
   const allPossibleXPaths = getAllXPaths(el);
   const xpath = getReliableXPath(allPossibleXPaths);
-  if (!xpath) return;
+  
+  if (!xpath) {
+    console.warn('Could not generate XPath for radio element:', el);
+    return;
+  }
+
+  // ✅ Get all radio buttons with the same name for context
+  const radioGroup = document.querySelectorAll(`input[type="radio"][name="${name}"]`);
+  const radioOptions = Array.from(radioGroup).map(radio => ({
+    value: radio.value,
+    checked: radio.checked,
+    label: radio.getAttribute('aria-label') || radio.getAttribute('label') || ''
+  }));
 
   const step = {
     type: 'radio',
@@ -780,12 +949,16 @@ function handleRadioClick(e) {
     value,
     tag: el.tagName.toLowerCase(),
     timestamp: Date.now(),
-    elementInfo: allPossibleXPaths.elementInfo
+    elementInfo: allPossibleXPaths.elementInfo,
+    allXPaths: allPossibleXPaths, // ✅ Store ALL XPaths
+    // ✅ Additional radio-specific information
+    radioGroup: radioOptions,
+    groupSize: radioGroup.length
   };
 
   window.advancedXPathInspector.state.recordedSteps.push(step);
   saveStepsToStorage();
-  console.log('✅ Recorded radio button step:', step);
+  console.log('✅ Enhanced radio button step:', step);
 }
 
 
@@ -795,46 +968,43 @@ function handleRadioClick(e) {
 function handleRecordedKeyDown(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
 
-    if (event.key === 'Enter') {
+    // Record more key events, not just Enter
+    const recordableKeys = ['Enter', 'Tab', 'Escape', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    
+    if (recordableKeys.includes(event.key)) {
         const target = event.target;
         const allPossibleXPaths = getAllXPaths(target);
-        let reliableXpath = '';
+        let reliableXpath = getReliableXPath(allPossibleXPaths);
 
-        if (allPossibleXPaths && allPossibleXPaths.uniqueXPaths && allPossibleXPaths.uniqueXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.uniqueXPaths[0]?.xpath || ''
-        } else if (allPossibleXPaths && allPossibleXPaths.formXPaths && allPossibleXPaths.formXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.formXPaths[0].xpath;
-        } else if (allPossibleXPaths && allPossibleXPaths.specializedXPaths && allPossibleXPaths.specializedXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.specializedXPaths[0].xpath;
-        } else if (allPossibleXPaths && allPossibleXPaths.xpaths) {
-            const categories = ['classBased', 'roleBased', 'textValue', 'classRoleText', 'parentContext', 'verticalRelative', 'horizontalRelative', 'nearRelative'];
-            for (const category of categories) {
-                if (allPossibleXPaths.xpaths[category] && allPossibleXPaths.xpaths[category].length > 0) {
-                    reliableXpath = allPossibleXPaths.xpaths[category][0].xpath;
-                    break;
-                }
-            }
-        }
-        if (!reliableXpath && allPossibleXPaths?.elementInfo?.xpath) {
-             reliableXpath = allPossibleXPaths.elementInfo.xpath;
-        } else if (!reliableXpath) {
+        // Fallback XPath generation
+        if (!reliableXpath) {
             reliableXpath = getSmartLocator(target).replace('xpath=', '');
         }
 
         reliableXpath = String(reliableXpath).trim();
-        if (!reliableXpath) return;
+        if (!reliableXpath) {
+            console.warn('Could not generate XPath for key event:', target);
+            return;
+        }
 
         const step = {
             type: 'keyDown',
             xpath: `xpath=${reliableXpath}`,
             key: event.key,
-            tag: target.tagName.toLowerCase(), // Add tag for context
-            timestamp: Date.now()
+            keyCode: event.keyCode,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+            metaKey: event.metaKey,
+            tag: target.tagName.toLowerCase(),
+            timestamp: Date.now(),
+            elementInfo: allPossibleXPaths.elementInfo,
+            allXPaths: allPossibleXPaths // ✅ Store ALL XPaths
         };
 
         window.advancedXPathInspector.state.recordedSteps.push(step);
         saveStepsToStorage();
-        console.log('🔑 Recorded key step:', step);
+        console.log('🔑 Enhanced key step:', step);
     }
 }
 
@@ -850,57 +1020,218 @@ function handleRecordedChange(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
 
     const el = event.target;
-    if (el.tagName.toLowerCase() === 'select') {
-        const selectedOption = el.options[el.selectedIndex];
-        const value = selectedOption.text || selectedOption.value;
-        
-        const allPossibleXPaths = getAllXPaths(el);
-        let reliableXpath = '';
+    const tag = el.tagName.toLowerCase();
+    const type = el.getAttribute('type');
+    
+    // Handle various change events
+    const allPossibleXPaths = getAllXPaths(el);
+    let reliableXpath = getReliableXPath(allPossibleXPaths);
 
-        if (allPossibleXPaths && allPossibleXPaths.uniqueXPaths && allPossibleXPaths.uniqueXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.uniqueXPaths[0]?.xpath || ''
-        } else if (allPossibleXPaths && allPossibleXPaths.formXPaths && allPossibleXPaths.formXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.formXPaths[0].xpath;
-        } else if (allPossibleXPaths && allPossibleXPaths.specializedXPaths && allPossibleXPaths.specializedXPaths.length > 0) {
-            reliableXpath = allPossibleXPaths.specializedXPaths[0].xpath;
-        } else if (allPossibleXPaths && allPossibleXPaths.xpaths) {
-            const categories = ['classBased', 'roleBased', 'textValue', 'classRoleText', 'parentContext', 'verticalRelative', 'horizontalRelative', 'nearRelative'];
-            for (const category of categories) {
-                if (allPossibleXPaths.xpaths[category] && allPossibleXPaths.xpaths[category].length > 0) {
-                    reliableXpath = allPossibleXPaths.xpaths[category][0].xpath;
-                    break;
-                }
-            }
-        }
-        if (!reliableXpath && allPossibleXPaths?.elementInfo?.xpath) {
-             reliableXpath = allPossibleXPaths.elementInfo.xpath;
-        } else if (!reliableXpath) {
-            reliableXpath = getSmartLocator(el).replace('xpath=', '');
-        }
-
-        reliableXpath = String(reliableXpath).trim();
-        if (!reliableXpath) return;
-
-        const step = {
-            type: 'dropdown',
-            xpath: `xpath=${reliableXpath}`,
-            value,
-            tag: 'select',
-            timestamp: Date.now()
-        };
-
-        window.advancedXPathInspector.state.recordedSteps.push(step);
-        saveStepsToStorage();
-        console.log('🔽 Recorded dropdown step:', step);
+    if (!reliableXpath) {
+        reliableXpath = getSmartLocator(el).replace('xpath=', '');
     }
+
+    reliableXpath = String(reliableXpath).trim();
+    if (!reliableXpath) {
+        console.warn('Could not generate XPath for change event:', el);
+        return;
+    }
+
+    let step = {
+        xpath: `xpath=${reliableXpath}`,
+        tag,
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths // ✅ Store ALL XPaths
+    };
+
+    // ✅ Handle different element types for change events
+    if (tag === 'select') {
+        const selectedOption = el.options[el.selectedIndex];
+        step = {
+            ...step,
+            type: 'dropdown_change',
+            value: selectedOption?.text || selectedOption?.value || '',
+            selectedIndex: el.selectedIndex,
+            multiple: el.multiple,
+            allOptions: Array.from(el.options).map(opt => ({
+                text: opt.text,
+                value: opt.value,
+                selected: opt.selected
+            }))
+        };
+    } else if (tag === 'input') {
+        switch (type) {
+            case 'checkbox':
+                step = {
+                    ...step,
+                    type: 'checkbox_change',
+                    value: el.checked ? 'Checked' : 'Unchecked',
+                    checked: el.checked
+                };
+                break;
+            case 'radio':
+                step = {
+                    ...step,
+                    type: 'radio_change',
+                    value: el.value,
+                    name: el.name,
+                    checked: el.checked
+                };
+                break;
+            case 'range':
+                step = {
+                    ...step,
+                    type: 'slider_change',
+                    value: el.value,
+                    min: el.min,
+                    max: el.max,
+                    step: el.step
+                };
+                break;
+            case 'file':
+                step = {
+                    ...step,
+                    type: 'file_change',
+                    value: el.files.length > 0 ? Array.from(el.files).map(f => f.name).join(', ') : '',
+                    fileCount: el.files.length
+                };
+                break;
+            default:
+                step = {
+                    ...step,
+                    type: 'input_change',
+                    value: el.value,
+                    inputType: type
+                };
+        }
+    } else if (tag === 'textarea') {
+        step = {
+            ...step,
+            type: 'textarea_change',
+            value: el.value
+        };
+    } else {
+        step = {
+            ...step,
+            type: 'change',
+            value: el.value || el.textContent?.trim() || ''
+        };
+    }
+
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('🔄 Enhanced change step:', step);
 }
-document.addEventListener('change', handleRecordedChange, true);
 
+// ✅ ENHANCED handleRecordedChange with better element type support
+function handleRecordedChange(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
 
+    const el = event.target;
+    const tag = el.tagName.toLowerCase();
+    const type = el.getAttribute('type');
+    
+    // Handle various change events
+    const allPossibleXPaths = getAllXPaths(el);
+    let reliableXpath = getReliableXPath(allPossibleXPaths);
 
+    if (!reliableXpath) {
+        reliableXpath = getSmartLocator(el).replace('xpath=', '');
+    }
 
+    reliableXpath = String(reliableXpath).trim();
+    if (!reliableXpath) {
+        console.warn('Could not generate XPath for change event:', el);
+        return;
+    }
 
+    let step = {
+        xpath: `xpath=${reliableXpath}`,
+        tag,
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths // ✅ Store ALL XPaths
+    };
 
+    // ✅ Handle different element types for change events
+    if (tag === 'select') {
+        const selectedOption = el.options[el.selectedIndex];
+        step = {
+            ...step,
+            type: 'dropdown_change',
+            value: selectedOption?.text || selectedOption?.value || '',
+            selectedIndex: el.selectedIndex,
+            multiple: el.multiple,
+            allOptions: Array.from(el.options).map(opt => ({
+                text: opt.text,
+                value: opt.value,
+                selected: opt.selected
+            }))
+        };
+    } else if (tag === 'input') {
+        switch (type) {
+            case 'checkbox':
+                step = {
+                    ...step,
+                    type: 'checkbox_change',
+                    value: el.checked ? 'Checked' : 'Unchecked',
+                    checked: el.checked
+                };
+                break;
+            case 'radio':
+                step = {
+                    ...step,
+                    type: 'radio_change',
+                    value: el.value,
+                    name: el.name,
+                    checked: el.checked
+                };
+                break;
+            case 'range':
+                step = {
+                    ...step,
+                    type: 'slider_change',
+                    value: el.value,
+                    min: el.min,
+                    max: el.max,
+                    step: el.step
+                };
+                break;
+            case 'file':
+                step = {
+                    ...step,
+                    type: 'file_change',
+                    value: el.files.length > 0 ? Array.from(el.files).map(f => f.name).join(', ') : '',
+                    fileCount: el.files.length
+                };
+                break;
+            default:
+                step = {
+                    ...step,
+                    type: 'input_change',
+                    value: el.value,
+                    inputType: type
+                };
+        }
+    } else if (tag === 'textarea') {
+        step = {
+            ...step,
+            type: 'textarea_change',
+            value: el.value
+        };
+    } else {
+        step = {
+            ...step,
+            type: 'change',
+            value: el.value || el.textContent?.trim() || ''
+        };
+    }
+
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('🔄 Enhanced change step:', step);
+}
 
 // Listen for messages with better error handling
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -1315,7 +1646,56 @@ function getAllXPaths(element) {
                 xpath: `//${tagName}[normalize-space(text())="${text}"]`,
                 type: 'normalized-text'
             });
+            
+            // ✅ ENHANCED: Case-insensitive text matching
+            result.xpaths.textValue.push({
+                xpath: `//${tagName}[translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="${text.toLowerCase()}"]`,
+                type: 'case-insensitive-text'
+            });
+            
+            // ✅ ENHANCED: Partial text matching with different strategies
+            if (text.length > 10) {
+                const words = text.split(' ').filter(w => w.length > 2);
+                if (words.length > 0) {
+                    result.xpaths.textValue.push({
+                        xpath: `//${tagName}[contains(normalize-space(text()), "${words[0]}")]`,
+                        type: 'first-word-text'
+                    });
+                }
+                
+                if (words.length > 1) {
+                    result.xpaths.textValue.push({
+                        xpath: `//${tagName}[contains(normalize-space(text()), "${words[0]}") and contains(normalize-space(text()), "${words[1]}")]`,
+                        type: 'multi-word-text'
+                    });
+                }
+            }
         }
+
+        // ✅ ENHANCED: Additional attribute-based XPaths
+        const additionalAttributes = [
+            'data-testid', 'data-test', 'data-cy', 'data-automation', 'data-qa',
+            'aria-label', 'aria-describedby', 'aria-labelledby', 'title', 'alt',
+            'href', 'src', 'for', 'accept', 'pattern', 'min', 'max', 'step'
+        ];
+        
+        additionalAttributes.forEach(attr => {
+            const attrValue = element.getAttribute(attr);
+            if (attrValue) {
+                result.xpaths.classBased.push({
+                    xpath: `//${tagName}[@${attr}="${attrValue}"]`,
+                    type: `attribute-${attr}`
+                });
+                
+                // Also add contains version for longer attribute values
+                if (attrValue.length > 10) {
+                    result.xpaths.classBased.push({
+                        xpath: `//${tagName}[contains(@${attr}, "${attrValue.substring(0, 10)}")]`,
+                        type: `contains-${attr}`
+                    });
+                }
+            }
+        });
 
         // Parent context XPath
         try {
@@ -1324,17 +1704,64 @@ function getAllXPaths(element) {
                 const parentTag = parentElement.tagName.toLowerCase();
                 const parentId = parentElement.id;
                 const parentClass = parentElement.className;
+                const parentRole = parentElement.getAttribute('role');
                 
                 if (parentId) {
                     result.xpaths.parentContext.push({
                         xpath: `//${parentTag}[@id="${parentId}"]/${tagName}`,
                         type: 'parent-id'
                     });
-                } else if (parentClass) {
+                    
+                    // ✅ ENHANCED: Direct descendant and any descendant
                     result.xpaths.parentContext.push({
-                        xpath: `//${parentTag}[contains(@class, "${parentClass.split(' ')[0]}")]/${tagName}`,
+                        xpath: `//${parentTag}[@id="${parentId}"]//${tagName}`,
+                        type: 'parent-id-descendant'
+                    });
+                } else if (parentClass) {
+                    const firstParentClass = parentClass.split(' ')[0];
+                    result.xpaths.parentContext.push({
+                        xpath: `//${parentTag}[contains(@class, "${firstParentClass}")]/${tagName}`,
                         type: 'parent-class'
                     });
+                    
+                    result.xpaths.parentContext.push({
+                        xpath: `//${parentTag}[contains(@class, "${firstParentClass}")]//${tagName}`,
+                        type: 'parent-class-descendant'
+                    });
+                }
+                
+                // ✅ ENHANCED: Parent role-based XPaths
+                if (parentRole) {
+                    result.xpaths.parentContext.push({
+                        xpath: `//${parentTag}[@role="${parentRole}"]/${tagName}`,
+                        type: 'parent-role'
+                    });
+                    
+                    result.xpaths.parentContext.push({
+                        xpath: `//${parentTag}[@role="${parentRole}"]//${tagName}`,
+                        type: 'parent-role-descendant'
+                    });
+                }
+                
+                // ✅ ENHANCED: Multi-level parent context
+                const grandParent = parentElement.parentElement;
+                if (grandParent && grandParent.tagName) {
+                    const gpTag = grandParent.tagName.toLowerCase();
+                    const gpId = grandParent.id;
+                    const gpClass = grandParent.className;
+                    
+                    if (gpId) {
+                        result.xpaths.parentContext.push({
+                            xpath: `//${gpTag}[@id="${gpId}"]//${parentTag}//${tagName}`,
+                            type: 'grandparent-id'
+                        });
+                    } else if (gpClass) {
+                        const firstGpClass = gpClass.split(' ')[0];
+                        result.xpaths.parentContext.push({
+                            xpath: `//${gpTag}[contains(@class, "${firstGpClass}")]//${parentTag}//${tagName}`,
+                            type: 'grandparent-class'
+                        });
+                    }
                 }
             }
         } catch (error) {
@@ -1344,9 +1771,17 @@ function getAllXPaths(element) {
         // Multi-attribute combinations
         // Class + Role + Text combinations
         if (classNames && role && text) {
+            const firstClass = classNames.split(' ')[0];
+            const shortText = text.substring(0, Math.min(text.length, 20));
             result.xpaths.classRoleText.push({
-                xpath: `//${tagName}[contains(@class, "${classNames.split(' ')[0]}") and @role="${role}" and contains(text(), "${text.substring(0, Math.min(text.length, 20))}")]`,
+                xpath: `//${tagName}[contains(@class, "${firstClass}") and @role="${role}" and contains(text(), "${shortText}")]`,
                 type: 'class+role+text'
+            });
+            
+            // ✅ ENHANCED: Normalized space version
+            result.xpaths.classRoleText.push({
+                xpath: `//${tagName}[contains(@class, "${firstClass}") and @role="${role}" and contains(normalize-space(text()), "${shortText}")]`,
+                type: 'class+role+normalized-text'
             });
         }
         
@@ -1355,6 +1790,35 @@ function getAllXPaths(element) {
             result.xpaths.classRoleValue.push({
                 xpath: `//${tagName}[contains(@class, "${classNames.split(' ')[0]}") and @role="${role}" and @value="${value}"]`,
                 type: 'class+role+value'
+            });
+        }
+        
+        // ✅ ENHANCED: More attribute combinations
+        if (classNames && name) {
+            result.xpaths.classRoleValue.push({
+                xpath: `//${tagName}[contains(@class, "${classNames.split(' ')[0]}") and @name="${name}"]`,
+                type: 'class+name'
+            });
+        }
+        
+        if (classNames && type) {
+            result.xpaths.classRoleValue.push({
+                xpath: `//${tagName}[contains(@class, "${classNames.split(' ')[0]}") and @type="${type}"]`,
+                type: 'class+type'
+            });
+        }
+        
+        if (role && name) {
+            result.xpaths.classRoleValue.push({
+                xpath: `//${tagName}[@role="${role}" and @name="${name}"]`,
+                type: 'role+name'
+            });
+        }
+        
+        if (role && type) {
+            result.xpaths.classRoleValue.push({
+                xpath: `//${tagName}[@role="${role}" and @type="${type}"]`,
+                type: 'role+type'
             });
         }
         
@@ -1372,6 +1836,62 @@ function getAllXPaths(element) {
                     }
                 }
             }
+        }
+        
+        // ✅ ENHANCED: Sibling-based XPaths
+        try {
+            const prevSibling = element.previousElementSibling;
+            const nextSibling = element.nextElementSibling;
+            
+            if (prevSibling) {
+                const prevTag = prevSibling.tagName.toLowerCase();
+                const prevId = prevSibling.id;
+                const prevClass = prevSibling.className;
+                const prevText = prevSibling.textContent.trim();
+                
+                if (prevId) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${prevTag}[@id="${prevId}"]/following-sibling::${tagName}[1]`,
+                        type: 'after-sibling-id'
+                    });
+                } else if (prevClass) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${prevTag}[contains(@class, "${prevClass.split(' ')[0]}")]/following-sibling::${tagName}[1]`,
+                        type: 'after-sibling-class'
+                    });
+                } else if (prevText && prevText.length < 30) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${prevTag}[contains(text(), "${prevText.substring(0, 15)}")]/following-sibling::${tagName}[1]`,
+                        type: 'after-sibling-text'
+                    });
+                }
+            }
+            
+            if (nextSibling) {
+                const nextTag = nextSibling.tagName.toLowerCase();
+                const nextId = nextSibling.id;
+                const nextClass = nextSibling.className;
+                const nextText = nextSibling.textContent.trim();
+                
+                if (nextId) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${nextTag}[@id="${nextId}"]/preceding-sibling::${tagName}[1]`,
+                        type: 'before-sibling-id'
+                    });
+                } else if (nextClass) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${nextTag}[contains(@class, "${nextClass.split(' ')[0]}")]/preceding-sibling::${tagName}[1]`,
+                        type: 'before-sibling-class'
+                    });
+                } else if (nextText && nextText.length < 30) {
+                    result.xpaths.horizontalRelative.push({
+                        xpath: `//${nextTag}[contains(text(), "${nextText.substring(0, 15)}")]/preceding-sibling::${tagName}[1]`,
+                        type: 'before-sibling-text'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Error generating sibling-based XPaths:", error);
         }
         
         // Class + Text + Value combinations
