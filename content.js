@@ -20,27 +20,90 @@
   window.addEventListener("popstate", dispatchLocationChange);
 })();
 
-
+// ✅ ENHANCED: Persistent recording state management
 window.addEventListener("spa-navigation", function () {
-    console.log("🔄 Detected SPA navigation");
-    initializeRecording(); // ✅ Re-attach event listeners
+    console.log("🔄 Detected SPA navigation - maintaining recording state");
+    maintainRecordingState();
 });
 
+// ✅ ENHANCED: Listen for page visibility changes to maintain recording
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        console.log("🔄 Page became visible - checking recording state");
+        setTimeout(() => {
+            maintainRecordingState();
+        }, 100);
+    }
+});
 
+// ✅ ENHANCED: Listen for focus events to maintain recording
+window.addEventListener('focus', function() {
+    console.log("🔄 Window focused - checking recording state");
+    setTimeout(() => {
+        maintainRecordingState();
+    }, 100);
+});
 
+// ✅ ENHANCED: Persistent recording state maintenance
+function maintainRecordingState() {
+    chrome.storage.local.get(['isRecording', 'recordedSteps'], (result) => {
+        if (result.isRecording) {
+            console.log("🎬 Maintaining recording state after navigation/reload");
+            
+            // Ensure the recording state is properly initialized
+            if (!window.advancedXPathInspector?.state) {
+                window.advancedXPathInspector = {
+                    state: {
+                        isRecording: true,
+                        recordedSteps: result.recordedSteps || [],
+                        isInspectorActive: false,
+                        isLocked: false
+                    },
+                    constants: {
+                        HOVER_COLOR: '#4CAF50',
+                        LOCKED_COLOR: '#2196F3',
+                        HOVER_STYLES: '2px solid #4CAF50',
+                        LOCKED_STYLES: '2px solid #2196F3',
+                        HOVER_DELAY: 1000
+                    }
+                };
+            } else {
+                // Update existing state
+                window.advancedXPathInspector.state.isRecording = true;
+                window.advancedXPathInspector.state.recordedSteps = result.recordedSteps || [];
+            }
+            
+            // Reattach recording listeners
+            detachRecordingListeners(); // Clean up first
+            attachRecordingListeners();
+            
+            console.log("✅ Recording state maintained with", result.recordedSteps?.length || 0, "existing steps");
+        } else {
+            console.log("🛑 Recording is not active");
+        }
+    });
+}
 
 // Call recording logic on first load
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get(['isRecording'], ({ isRecording }) => {
-    if (isRecording) {
-      console.log('🚀 Initial DOM loaded and recording is enabled');
-      initializeRecording();
-    }
-  });
+    console.log('🚀 DOM loaded - initializing recording system');
+    maintainRecordingState();
+    initializeRecording();
+    // ✅ ENHANCED: Initialize persistent recording system
+    initializePersistentRecording();
 });
 
-
-
+// ✅ ENHANCED: Also check on window load for additional safety
+window.addEventListener('load', () => {
+    console.log('🚀 Window loaded - double-checking recording state');
+    setTimeout(() => {
+        maintainRecordingState();
+        // ✅ ENHANCED: Ensure persistent system is running
+        if (!dynamicContentObserver) {
+            initializePersistentRecording();
+        }
+    }, 500);
+});
 
 console.log("✅ Content script injected on", window.location.href);
 let inputTimeouts = {};
@@ -73,68 +136,132 @@ function initializeRecording() {
 
     attachRecordingListeners();
 
-    chrome.storage.local.get(['isRecording'], ({ isRecording }) => {
+    // ✅ ENHANCED: More robust recording state restoration with recovery
+    chrome.storage.local.get(['isRecording', 'recordedSteps'], ({ isRecording, recordedSteps }) => {
         if (isRecording) {
             window.advancedXPathInspector.state.isRecording = true;
-            console.log("✅ Recording resumed after SPA navigation.");
+            window.advancedXPathInspector.state.recordedSteps = recordedSteps || [];
+            
+            // Ensure listeners are attached
+            if (!window._recordingListenersAttached) {
+                attachRecordingListeners();
+            }
+            
+            // ✅ ENHANCED: Set up recovery mechanism
+            createRecordingRecoveryMechanism();
+            
+            console.log("✅ Recording resumed after initialization with", recordedSteps?.length || 0, "steps");
+        } else {
+            // ✅ ENHANCED: Check for recovery from sessionStorage
+            try {
+                const sessionRecording = sessionStorage.getItem('xpathRecorderActive');
+                const sessionSteps = sessionStorage.getItem('xpathRecorderSteps');
+                
+                if (sessionRecording === 'true' && sessionSteps) {
+                    console.log('🔄 Recovering recording state from sessionStorage');
+                    const recoveredSteps = JSON.parse(sessionSteps);
+                    
+                    // Restore recording state
+                    window.advancedXPathInspector.state.isRecording = true;
+                    window.advancedXPathInspector.state.recordedSteps = recoveredSteps;
+                    
+                    // Update chrome storage
+                    chrome.storage.local.set({ 
+                        isRecording: true, 
+                        recordedSteps: recoveredSteps 
+                    });
+                    
+                    // Attach listeners
+                    attachRecordingListeners();
+                    
+                    console.log(`✅ Recovered recording with ${recoveredSteps.length} steps`);
+                }
+            } catch (e) {
+                console.warn('Could not recover from sessionStorage:', e);
+            }
         }
     });
 
-    document.querySelectorAll('select').forEach(select => {
-        select.addEventListener('change', (e) => {
-            if (!window.advancedXPathInspector?.state?.isRecording) return;
+    // ✅ ENHANCED: Handle select elements more robustly with dynamic detection
+    const initializeSelectElements = () => {
+        document.querySelectorAll('select:not([data-recording-initialized])').forEach(select => {
+            select.setAttribute('data-recording-initialized', 'true');
+            select.addEventListener('change', (e) => {
+                if (!window.advancedXPathInspector?.state?.isRecording) return;
 
-            const el = e.target;
-            const selectedOption = el.options[el.selectedIndex];
-            const value = selectedOption?.text || selectedOption?.value || '';
+                const el = e.target;
+                const selectedOption = el.options[el.selectedIndex];
+                const value = selectedOption?.text || selectedOption?.value || '';
 
-            const allPossibleXPaths = getAllXPaths(el);
-            const xpath = getReliableXPath(allPossibleXPaths);
-            if (!xpath) return;
+                const allPossibleXPaths = getAllXPaths(el);
+                const xpath = getReliableXPath(allPossibleXPaths);
+                if (!xpath) {
+                    console.warn('Could not generate XPath for select element:', el);
+                    return;
+                }
 
-            const step = {
-                type: 'dropdown',
-                xpath: `xpath=${xpath}`,
-                tag: el.tagName.toLowerCase(),
-                value,
-                timestamp: Date.now(),
-                elementInfo: allPossibleXPaths.elementInfo
-            };
+                const step = {
+                    type: 'dropdown',
+                    xpath: `xpath=${xpath}`,
+                    tag: el.tagName.toLowerCase(),
+                    value,
+                    timestamp: Date.now(),
+                    elementInfo: allPossibleXPaths.elementInfo,
+                    allXPaths: allPossibleXPaths
+                };
 
-            window.advancedXPathInspector.state.recordedSteps.push(step);
-            saveStepsToStorage();
-        }, true);
-    });
+                window.advancedXPathInspector.state.recordedSteps.push(step);
+                saveStepsToStorage();
+                console.log('✅ Recorded select change:', step);
+            }, true);
+        });
+    };
 
-    document.querySelectorAll('input[type=radio]').forEach(radio => {
-        radio.addEventListener('click', (e) => {
-            if (!window.advancedXPathInspector?.state?.isRecording) return;
+    // ✅ ENHANCED: Handle radio buttons more robustly with dynamic detection
+    const initializeRadioElements = () => {
+        document.querySelectorAll('input[type=radio]:not([data-recording-initialized])').forEach(radio => {
+            radio.setAttribute('data-recording-initialized', 'true');
+            radio.addEventListener('click', (e) => {
+                if (!window.advancedXPathInspector?.state?.isRecording) return;
 
-            const el = e.target;
-            const allPossibleXPaths = getAllXPaths(el);
-            const xpath = getSmartLocator(el).replace('xpath=', '') || allPossibleXPaths?.uniqueXPaths?.[0]?.xpath;
-            if (!xpath || xpath.includes('[object Object]')) return;
+                const el = e.target;
+                const allPossibleXPaths = getAllXPaths(el);
+                const xpath = getReliableXPath(allPossibleXPaths);
+                if (!xpath) {
+                    console.warn('Could not generate XPath for radio element:', el);
+                    return;
+                }
 
-            const step = {
-                type: 'radio',
-                xpath: `xpath=${xpath}`,
-                tag: el.tagName.toLowerCase(),
-                name: el.name || '',
-                value: el.value || el.getAttribute('aria-label') || el.getAttribute('label'),
-                timestamp: Date.now(),
-                elementInfo: allPossibleXPaths.elementInfo
-            };
+                const step = {
+                    type: 'radio',
+                    xpath: `xpath=${xpath}`,
+                    tag: el.tagName.toLowerCase(),
+                    name: el.name || '',
+                    value: el.value || el.getAttribute('aria-label') || el.getAttribute('label'),
+                    timestamp: Date.now(),
+                    elementInfo: allPossibleXPaths.elementInfo,
+                    allXPaths: allPossibleXPaths
+                };
 
-            window.advancedXPathInspector.state.recordedSteps.push(step);
-            saveStepsToStorage();
-            console.log('✅ Recorded radio button click:', step);
-        }, true);
-    });
+                window.advancedXPathInspector.state.recordedSteps.push(step);
+                saveStepsToStorage();
+                console.log('✅ Recorded radio button click:', step);
+            }, true);
+        });
+    };
+    
+    // Initialize existing elements
+    initializeSelectElements();
+    initializeRadioElements();
+    
+    // ✅ ENHANCED: Set up periodic re-initialization for dynamic content
+    setInterval(() => {
+        if (window.advancedXPathInspector?.state?.isRecording) {
+            initializeSelectElements();
+            initializeRadioElements();
+        }
+    }, 3000); // Check every 3 seconds for new elements
 }
-
-
-
-
 
 chrome.storage.local.get(['isRecording'], ({ isRecording }) => {
     if (isRecording) {
@@ -146,9 +273,6 @@ chrome.storage.local.get(['isRecording'], ({ isRecording }) => {
         attachRecordingListeners();
     }
 });
-
-
-
 
 // Check if script is already initialized
 if (window.advancedXPathInspector) {
@@ -168,12 +292,6 @@ if (window.advancedXPathInspector) {
         console.log('Error cleaning up old state:', error);
     }
 }
-
-
-
-
-
-
 
 // Create namespace for our extension with recovery mechanism
 window.advancedXPathInspector = {
@@ -249,9 +367,6 @@ chrome.storage.local.get(['recordedSteps'], (result) => {
     window.advancedXPathInspector.state.recordedSteps = result.recordedSteps || [];
     console.log('🧩 Restored steps after page load:', result.recordedSteps);
 });
-
-
-
 
 // Function to cleanup event listeners
 function cleanupEventListeners() {
@@ -331,11 +446,6 @@ function detachRecordingListeners() {
     window._recordingListenersAttached = false;
     console.log('🛑 Enhanced recording listeners detached');
 }
-
-
-
-
-
 
 // Function to lock current element
 function lockElement(element) {
@@ -562,10 +672,236 @@ function handleClick(event) {
     }
 }
 
+// ✅ ENHANCED: Robust step storage with error handling and backup
 function saveStepsToStorage() {
-    chrome.storage.local.set({
-        recordedSteps: window.advancedXPathInspector.state.recordedSteps
+    if (!window.advancedXPathInspector?.state?.recordedSteps) {
+        console.warn('No recorded steps to save');
+        return;
+    }
+    
+    const steps = window.advancedXPathInspector.state.recordedSteps;
+    const timestamp = Date.now();
+    
+    // Save to primary storage
+    chrome.storage.local.set({ 
+        recordedSteps: steps,
+        lastSaved: timestamp,
+        stepCount: steps.length
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error('Error saving steps to storage:', chrome.runtime.lastError);
+        } else {
+            console.log(`💾 Saved ${steps.length} steps to storage`);
+        }
     });
+    
+    // ✅ ENHANCED: Create backup with timestamp for recovery
+    chrome.storage.local.set({
+        [`recordedSteps_backup_${timestamp}`]: steps
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.warn('Could not create backup:', chrome.runtime.lastError);
+        }
+    });
+    
+    // ✅ ENHANCED: Clean up old backups (keep only last 5)
+    chrome.storage.local.get(null, (allData) => {
+        const backupKeys = Object.keys(allData).filter(key => key.startsWith('recordedSteps_backup_'));
+        if (backupKeys.length > 5) {
+            const sortedKeys = backupKeys.sort().reverse(); // Most recent first
+            const keysToRemove = sortedKeys.slice(5); // Remove all but the 5 most recent
+            
+            keysToRemove.forEach(key => {
+                chrome.storage.local.remove(key);
+            });
+            
+            console.log(`🧹 Cleaned up ${keysToRemove.length} old backups`);
+        }
+    });
+}
+
+// ✅ ENHANCED: Mutation observer to handle dynamic content
+let dynamicContentObserver = null;
+
+function setupDynamicContentObserver() {
+    // Clean up existing observer
+    if (dynamicContentObserver) {
+        dynamicContentObserver.disconnect();
+    }
+    
+    dynamicContentObserver = new MutationObserver((mutations) => {
+        let shouldReinitialize = false;
+        
+        mutations.forEach((mutation) => {
+            // Check if new form elements were added
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const hasFormElements = node.matches && (
+                            node.matches('input, select, textarea, button') ||
+                            node.querySelector('input, select, textarea, button')
+                        );
+                        
+                        if (hasFormElements) {
+                            shouldReinitialize = true;
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Reinitialize recording for new elements if needed
+        if (shouldReinitialize && window.advancedXPathInspector?.state?.isRecording) {
+            console.log('🔄 New form elements detected - reinitializing recording');
+            setTimeout(() => {
+                initializeDynamicElements();
+            }, 100);
+        }
+    });
+    
+    // Start observing
+    dynamicContentObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: false
+    });
+    
+    console.log('👁️ Dynamic content observer started');
+}
+
+// ✅ ENHANCED: Initialize recording for dynamically added elements
+function initializeDynamicElements() {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    // Handle dynamically added select elements
+    document.querySelectorAll('select:not([data-recording-initialized])').forEach(select => {
+        select.setAttribute('data-recording-initialized', 'true');
+        select.addEventListener('change', (e) => {
+            if (!window.advancedXPathInspector?.state?.isRecording) return;
+
+            const el = e.target;
+            const selectedOption = el.options[el.selectedIndex];
+            const value = selectedOption?.text || selectedOption?.value || '';
+
+            const allPossibleXPaths = getAllXPaths(el);
+            const xpath = getReliableXPath(allPossibleXPaths);
+            if (!xpath) {
+                console.warn('Could not generate XPath for dynamic select element:', el);
+                return;
+            }
+
+            const step = {
+                type: 'dropdown',
+                xpath: `xpath=${xpath}`,
+                tag: el.tagName.toLowerCase(),
+                value,
+                timestamp: Date.now(),
+                elementInfo: allPossibleXPaths.elementInfo,
+                allXPaths: allPossibleXPaths,
+                isDynamic: true // Mark as dynamically added
+            };
+
+            window.advancedXPathInspector.state.recordedSteps.push(step);
+            saveStepsToStorage();
+            console.log('✅ Recorded dynamic select change:', step);
+        }, true);
+    });
+
+    // Handle dynamically added radio buttons
+    document.querySelectorAll('input[type=radio]:not([data-recording-initialized])').forEach(radio => {
+        radio.setAttribute('data-recording-initialized', 'true');
+        radio.addEventListener('click', (e) => {
+            if (!window.advancedXPathInspector?.state?.isRecording) return;
+
+            const el = e.target;
+            const allPossibleXPaths = getAllXPaths(el);
+            const xpath = getReliableXPath(allPossibleXPaths);
+            if (!xpath) {
+                console.warn('Could not generate XPath for dynamic radio element:', el);
+                return;
+            }
+
+            const step = {
+                type: 'radio',
+                xpath: `xpath=${xpath}`,
+                tag: el.tagName.toLowerCase(),
+                name: el.name || '',
+                value: el.value || el.getAttribute('aria-label') || el.getAttribute('label'),
+                timestamp: Date.now(),
+                elementInfo: allPossibleXPaths.elementInfo,
+                allXPaths: allPossibleXPaths,
+                isDynamic: true // Mark as dynamically added
+            };
+
+            window.advancedXPathInspector.state.recordedSteps.push(step);
+            saveStepsToStorage();
+            console.log('✅ Recorded dynamic radio button click:', step);
+        }, true);
+    });
+    
+    // Handle other dynamically added form elements
+    document.querySelectorAll('input:not([type=radio]):not([data-recording-initialized]), textarea:not([data-recording-initialized])').forEach(element => {
+        element.setAttribute('data-recording-initialized', 'true');
+        console.log('🆕 Initialized recording for dynamic element:', element.tagName.toLowerCase());
+    });
+}
+
+// ✅ ENHANCED: Periodic recording state check
+function startPeriodicRecordingCheck() {
+    setInterval(() => {
+        chrome.storage.local.get(['isRecording'], (result) => {
+            if (result.isRecording && !window.advancedXPathInspector?.state?.isRecording) {
+                console.log('🔄 Recording state mismatch detected - fixing');
+                maintainRecordingState();
+            } else if (!result.isRecording && window.advancedXPathInspector?.state?.isRecording) {
+                console.log('🛑 Recording stopped externally - updating state');
+                window.advancedXPathInspector.state.isRecording = false;
+                detachRecordingListeners();
+            }
+        });
+    }, 2000); // Check every 2 seconds
+}
+
+// ✅ ENHANCED: Recovery mechanism for lost recording state
+function createRecordingRecoveryMechanism() {
+    // Store recording state in multiple places for redundancy
+    if (window.advancedXPathInspector?.state?.isRecording) {
+        // Use sessionStorage as backup
+        try {
+            sessionStorage.setItem('xpathRecorderActive', 'true');
+            sessionStorage.setItem('xpathRecorderSteps', JSON.stringify(window.advancedXPathInspector.state.recordedSteps || []));
+        } catch (e) {
+            console.warn('Could not use sessionStorage for backup:', e);
+        }
+        
+        // Use a custom property on window for immediate access
+        window._xpathRecorderState = {
+            isRecording: true,
+            steps: window.advancedXPathInspector.state.recordedSteps || [],
+            lastUpdate: Date.now()
+        };
+    }
+}
+
+// ✅ ENHANCED: Initialize all persistence mechanisms
+function initializePersistentRecording() {
+    console.log('🚀 Initializing persistent recording system');
+    
+    // Set up dynamic content observer
+    setupDynamicContentObserver();
+    
+    // Start periodic checks
+    startPeriodicRecordingCheck();
+    
+    // Create recovery mechanism
+    createRecordingRecoveryMechanism();
+    
+    // Initialize dynamic elements that might already exist
+    setTimeout(() => {
+        initializeDynamicElements();
+    }, 500);
+    
+    console.log('✅ Persistent recording system initialized');
 }
 
 function getSmartLocator(el) {
@@ -594,23 +930,12 @@ function getSmartLocator(el) {
     return `xpath=//${tag}[${index}]`;
 }
 
-
-
-
 function extractXpath(x) {
     if (!x) return '';
     if (typeof x === 'string') return x;
     if (typeof x === 'object' && x.xpath) return String(x.xpath);
     return '';
 }
-
-
-
-
-
-
-
-
 
 // Store a timer per field to debounce
 const inputDebounceTimers = {};
@@ -809,7 +1134,6 @@ function handleRecordedClick(event) {
     console.log('✅ Recorded enhanced click step:', step);
 }
 
-
 function handleSelectChange(e) {
   if (!window.advancedXPathInspector?.state?.isRecording) return;
 
@@ -850,9 +1174,6 @@ function handleSelectChange(e) {
   saveStepsToStorage();
   console.log('✅ Enhanced dropdown step:', step);
 }
-
-
-
 
 function handleRecordedInput(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
@@ -961,10 +1282,6 @@ function handleRadioClick(e) {
   console.log('✅ Enhanced radio button step:', step);
 }
 
-
-
-
-
 function handleRecordedKeyDown(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
 
@@ -1008,123 +1325,6 @@ function handleRecordedKeyDown(event) {
     }
 }
 
-// ✅ Define this missing function!
-function saveStepsToStorage() {
-    const steps = window.advancedXPathInspector.state.recordedSteps || [];
-    chrome.storage.local.set({ recordedSteps: steps }, () => {
-        console.log('💾 Steps saved to storage');
-    });
-}
-
-function handleRecordedChange(event) {
-    if (!window.advancedXPathInspector?.state?.isRecording) return;
-
-    const el = event.target;
-    const tag = el.tagName.toLowerCase();
-    const type = el.getAttribute('type');
-    
-    // Handle various change events
-    const allPossibleXPaths = getAllXPaths(el);
-    let reliableXpath = getReliableXPath(allPossibleXPaths);
-
-    if (!reliableXpath) {
-        reliableXpath = getSmartLocator(el).replace('xpath=', '');
-    }
-
-    reliableXpath = String(reliableXpath).trim();
-    if (!reliableXpath) {
-        console.warn('Could not generate XPath for change event:', el);
-        return;
-    }
-
-    let step = {
-        xpath: `xpath=${reliableXpath}`,
-        tag,
-        timestamp: Date.now(),
-        elementInfo: allPossibleXPaths.elementInfo,
-        allXPaths: allPossibleXPaths // ✅ Store ALL XPaths
-    };
-
-    // ✅ Handle different element types for change events
-    if (tag === 'select') {
-        const selectedOption = el.options[el.selectedIndex];
-        step = {
-            ...step,
-            type: 'dropdown_change',
-            value: selectedOption?.text || selectedOption?.value || '',
-            selectedIndex: el.selectedIndex,
-            multiple: el.multiple,
-            allOptions: Array.from(el.options).map(opt => ({
-                text: opt.text,
-                value: opt.value,
-                selected: opt.selected
-            }))
-        };
-    } else if (tag === 'input') {
-        switch (type) {
-            case 'checkbox':
-                step = {
-                    ...step,
-                    type: 'checkbox_change',
-                    value: el.checked ? 'Checked' : 'Unchecked',
-                    checked: el.checked
-                };
-                break;
-            case 'radio':
-                step = {
-                    ...step,
-                    type: 'radio_change',
-                    value: el.value,
-                    name: el.name,
-                    checked: el.checked
-                };
-                break;
-            case 'range':
-                step = {
-                    ...step,
-                    type: 'slider_change',
-                    value: el.value,
-                    min: el.min,
-                    max: el.max,
-                    step: el.step
-                };
-                break;
-            case 'file':
-                step = {
-                    ...step,
-                    type: 'file_change',
-                    value: el.files.length > 0 ? Array.from(el.files).map(f => f.name).join(', ') : '',
-                    fileCount: el.files.length
-                };
-                break;
-            default:
-                step = {
-                    ...step,
-                    type: 'input_change',
-                    value: el.value,
-                    inputType: type
-                };
-        }
-    } else if (tag === 'textarea') {
-        step = {
-            ...step,
-            type: 'textarea_change',
-            value: el.value
-        };
-    } else {
-        step = {
-            ...step,
-            type: 'change',
-            value: el.value || el.textContent?.trim() || ''
-        };
-    }
-
-    window.advancedXPathInspector.state.recordedSteps.push(step);
-    saveStepsToStorage();
-    console.log('🔄 Enhanced change step:', step);
-}
-
-// ✅ ENHANCED handleRecordedChange with better element type support
 function handleRecordedChange(event) {
     if (!window.advancedXPathInspector?.state?.isRecording) return;
 
@@ -1353,10 +1553,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             console.log("Recording stopped");
             sendResponse({ success: true });
         }
-
-
-
-
 
         else if (request.action === 'checkLockStatus') {
             try {
@@ -3134,19 +3330,429 @@ The output must be valid Robot Framework code only without any explanations or m
     }
 } 
 
+// ✅ NEW: Additional event handlers for comprehensive recording
 
-// function reattachRecordingIfActive() {
-//     chrome.storage.local.get(['isRecording'], function (result) {
-//         if (result.isRecording) {
-//             window.advancedXPathInspector.state.isRecording = true;
-//             attachRecordingListeners();
-//             console.log("Recording reattached after navigation.");
-//         }
-//     });
-// }
+function handleRecordedDoubleClick(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) {
+        console.warn('Could not generate XPath for double click:', el);
+        return;
+    }
+    
+    const step = {
+        type: 'double_click',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        value: el.textContent?.trim() || el.value || '',
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded double click:', step);
+}
 
-// if (document.readyState === 'loading') {
-//     document.addEventListener('DOMContentLoaded', reattachRecordingIfActive);
-// } else {
-//     reattachRecordingIfActive();
-// }
+function handleRecordedRightClick(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'right_click',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        value: el.textContent?.trim() || el.value || '',
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded right click:', step);
+}
+
+function handleRecordedFocus(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const tag = el.tagName.toLowerCase();
+    
+    // Only record focus for form elements and interactive elements
+    if (!['input', 'textarea', 'select', 'button'].includes(tag) && 
+        !el.getAttribute('tabindex') && 
+        !el.getAttribute('contenteditable')) return;
+    
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'focus',
+        xpath: `xpath=${reliableXpath}`,
+        tag,
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded focus:', step);
+}
+
+function handleRecordedBlur(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const tag = el.tagName.toLowerCase();
+    
+    // Only record blur for form elements
+    if (!['input', 'textarea', 'select'].includes(tag)) return;
+    
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'blur',
+        xpath: `xpath=${reliableXpath}`,
+        tag,
+        timestamp: Date.now(),
+        value: el.value || '',
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded blur:', step);
+}
+
+function handleRecordedSubmit(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    // Collect form data
+    const formData = new FormData(el);
+    const formFields = {};
+    for (let [key, value] of formData.entries()) {
+        formFields[key] = value;
+    }
+    
+    const step = {
+        type: 'form_submit',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        formData: formFields,
+        action: el.action || '',
+        method: el.method || 'GET',
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded form submit:', step);
+}
+
+function handleRecordedReset(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'form_reset',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded form reset:', step);
+}
+
+// ✅ Mouse event handlers
+function handleRecordedMouseDown(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    // Store mouse down info for potential drag operations
+    window._mouseDownInfo = {
+        element: event.target,
+        x: event.clientX,
+        y: event.clientY,
+        timestamp: Date.now()
+    };
+}
+
+function handleRecordedMouseUp(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    // Check if this was a drag operation
+    if (window._mouseDownInfo) {
+        const timeDiff = Date.now() - window._mouseDownInfo.timestamp;
+        const distance = Math.sqrt(
+            Math.pow(event.clientX - window._mouseDownInfo.x, 2) + 
+            Math.pow(event.clientY - window._mouseDownInfo.y, 2)
+        );
+        
+        // If mouse moved significantly and time was reasonable, consider it a drag
+        if (distance > 10 && timeDiff > 100) {
+            const allPossibleXPaths = getAllXPaths(window._mouseDownInfo.element);
+            const reliableXpath = getReliableXPath(allPossibleXPaths);
+            
+            if (reliableXpath) {
+                const step = {
+                    type: 'drag',
+                    xpath: `xpath=${reliableXpath}`,
+                    tag: window._mouseDownInfo.element.tagName.toLowerCase(),
+                    timestamp: Date.now(),
+                    startX: window._mouseDownInfo.x,
+                    startY: window._mouseDownInfo.y,
+                    endX: event.clientX,
+                    endY: event.clientY,
+                    distance: Math.round(distance),
+                    duration: timeDiff,
+                    elementInfo: allPossibleXPaths.elementInfo,
+                    allXPaths: allPossibleXPaths
+                };
+                
+                window.advancedXPathInspector.state.recordedSteps.push(step);
+                saveStepsToStorage();
+                console.log('✅ Recorded drag operation:', step);
+            }
+        }
+        
+        window._mouseDownInfo = null;
+    }
+}
+
+function handleRecordedMouseOver(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    // Only record hover for elements that might have hover effects
+    const el = event.target;
+    const tag = el.tagName.toLowerCase();
+    const role = el.getAttribute('role');
+    
+    if (!['button', 'a', 'img'].includes(tag) && 
+        !['button', 'link', 'menuitem', 'tab'].includes(role) &&
+        !el.classList.toString().includes('hover')) return;
+    
+    // Debounce hover events
+    if (window._hoverTimeout) {
+        clearTimeout(window._hoverTimeout);
+    }
+    
+    window._hoverTimeout = setTimeout(() => {
+        const allPossibleXPaths = getAllXPaths(el);
+        const reliableXpath = getReliableXPath(allPossibleXPaths);
+        
+        if (reliableXpath) {
+            const step = {
+                type: 'hover',
+                xpath: `xpath=${reliableXpath}`,
+                tag,
+                timestamp: Date.now(),
+                elementInfo: allPossibleXPaths.elementInfo,
+                allXPaths: allPossibleXPaths
+            };
+            
+            window.advancedXPathInspector.state.recordedSteps.push(step);
+            saveStepsToStorage();
+            console.log('✅ Recorded hover:', step);
+        }
+    }, 500); // 500ms delay to avoid too many hover events
+}
+
+function handleRecordedMouseOut(event) {
+    if (window._hoverTimeout) {
+        clearTimeout(window._hoverTimeout);
+        window._hoverTimeout = null;
+    }
+}
+
+// ✅ Drag and drop handlers
+function handleRecordedDragStart(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'drag_start',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        dragData: event.dataTransfer ? event.dataTransfer.types : [],
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded drag start:', step);
+}
+
+function handleRecordedDragEnd(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'drag_end',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded drag end:', step);
+}
+
+function handleRecordedDrop(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'drop',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        dropData: event.dataTransfer ? event.dataTransfer.types : [],
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded drop:', step);
+}
+
+// ✅ Touch event handlers for mobile
+function handleRecordedTouchStart(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const touch = event.touches[0];
+    const step = {
+        type: 'touch_start',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        touchX: touch.clientX,
+        touchY: touch.clientY,
+        touchCount: event.touches.length,
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded touch start:', step);
+}
+
+function handleRecordedTouchEnd(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    const el = event.target;
+    const allPossibleXPaths = getAllXPaths(el);
+    const reliableXpath = getReliableXPath(allPossibleXPaths);
+    
+    if (!reliableXpath) return;
+    
+    const step = {
+        type: 'touch_end',
+        xpath: `xpath=${reliableXpath}`,
+        tag: el.tagName.toLowerCase(),
+        timestamp: Date.now(),
+        elementInfo: allPossibleXPaths.elementInfo,
+        allXPaths: allPossibleXPaths
+    };
+    
+    window.advancedXPathInspector.state.recordedSteps.push(step);
+    saveStepsToStorage();
+    console.log('✅ Recorded touch end:', step);
+}
+
+// ✅ Scroll event handler
+let scrollTimeout;
+function handleRecordedScroll(event) {
+    if (!window.advancedXPathInspector?.state?.isRecording) return;
+    
+    // Debounce scroll events
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    scrollTimeout = setTimeout(() => {
+        const el = event.target === document ? document.documentElement : event.target;
+        const allPossibleXPaths = getAllXPaths(el);
+        const reliableXpath = getReliableXPath(allPossibleXPaths);
+        
+        if (!reliableXpath) return;
+        
+        const step = {
+            type: 'scroll',
+            xpath: `xpath=${reliableXpath}`,
+            tag: el.tagName?.toLowerCase() || 'document',
+            timestamp: Date.now(),
+            scrollTop: el.scrollTop || window.pageYOffset,
+            scrollLeft: el.scrollLeft || window.pageXOffset,
+            scrollHeight: el.scrollHeight || document.documentElement.scrollHeight,
+            scrollWidth: el.scrollWidth || document.documentElement.scrollWidth,
+            elementInfo: allPossibleXPaths.elementInfo,
+            allXPaths: allPossibleXPaths
+        };
+        
+        window.advancedXPathInspector.state.recordedSteps.push(step);
+        saveStepsToStorage();
+        console.log('✅ Recorded scroll:', step);
+    }, 250); // 250ms debounce
+}
