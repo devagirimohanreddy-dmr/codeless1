@@ -1,0 +1,6 @@
+/* Element highlight styles */
+.element-highlight {
+    outline: 2px solid #ff0000 !important;
+    outline-offset: -2px !important;
+    background-color: rgba(255, 0, 0, 0.1) !important;
+} 

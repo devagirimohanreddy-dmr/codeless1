@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step Generator</title>
+    <link rel="stylesheet" href="styles/popup.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Highlighted button style */
+        .highlight-button {
+            background-color: #1a73e8;
+            color: white;
+            font-weight: bold;
+            position: relative;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(26, 115, 232, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0); }
+        }
+        
+        /* Script persistence notification styles have been moved to the external CSS file */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <img src="icons/logo.png" alt="Logo" class="logo-icon">
+                Codeless Step Generator
+            </h1>
+            <button id="toggleInspector" class="toggle-button">Start Inspection</button>
+        </div>
+        
+        <!-- XPath Search Bar Section -->
+        <div class="xpath-search-section">
+            <div class="search-container">
+                <div class="input-wrapper">
+                    <input type="text" id="xpathInput" placeholder="Enter XPath to test..." class="xpath-input">
+                    <div id="xpathSuggestions" class="xpath-suggestions">
+                        <!-- Suggestions will appear here -->
+                    </div>
+                </div>
+                <button id="testXPath" class="test-xpath-button">Test XPath</button>
+            </div>
+            <div class="xpath-results" id="xpathResults">
+                <!-- Results will be shown here -->
+            </div>
+        </div>
+
+        <!-- Element Info Section -->
+        <div id="elementInfo" class="element-info-container"></div>
+        <!-- Add this inside your popup UI, where the step builder appears -->
+        <button id="recordToggleButton">🎬 Start Recording</button>
+        <div id="recordingStatus"></div>
+
+        <textarea id="robotScript" readonly style="width: 100%; height: 200px; margin-top: 10px;"></textarea>
+        <div class="script-actions">
+            <button id="copyScriptButton">📋 Copy Script</button>
+            <button id="downloadScriptButton">⬇️ Download Script</button>
+        </div>
+
+        <button id="generateScript">Generate Script</button>
+        <button id="enhanceWithAIButton">✨ Enhance with AI</button>
+        <button id="clearRecordedSteps" style="margin-top: 10px;">🧹 Clear Recorded Steps</button>
+        <!-- Add this inside <body>, below your Start/Stop Recording button -->
+        <div id="stepDisplay" style="margin-top: 10px; font-size: 14px; color: white;">
+        <h3>Recorded Steps</h3>
+        <div id="stepList"></div>
+        </div>
+
+
+        <!-- Robot Framework Action Builder Section -->
+        <div class="robot-framework-section">
+            <h2>Robot Framework Test Builder</h2>
+            
+            <div class="instructions-box">
+                <h4>How to build your test:</h4>
+                <ol>
+                    <li>Click <strong>Start Inspection</strong> and select an element on the page</li>
+                    <li>Enter a descriptive <strong>Element Name</strong> (e.g., "Login Button")</li>
+                    <li>Choose a <strong>Locator Type</strong> (XPath, ID, etc.)</li>
+                    <li>If using XPath, select from available XPath options</li>
+                    <li>Choose an <strong>Action</strong> to perform on the element</li>
+                    <li>Add any required <strong>Input Values</strong></li>
+                    <li>Click <strong>Add Step</strong> to include it in your test</li>
+                    <li>Repeat for additional steps</li>
+                    <li>Click <strong>Generate Robot Script</strong> when done</li>
+                </ol>
+            </div>
+            
+            <div class="steps-container" id="stepsContainer">
+                <div class="empty-steps-message" id="emptyStepsMessage">
+                    Scan elements and add actions to build your test script.
+                </div>
+                <!-- Steps will be added here dynamically -->
+            </div>
+
+
+            <div class="action-builder" id="actionBuilder">
+                <h3>Current Element Action</h3>
+                <div class="selector-group">
+                    <div class="element-name-field">
+                        <label for="elementName">Element Name:</label>
+                        <input type="text" id="elementName" placeholder="Enter name for this element..." class="input-field">
+                    </div>
+                    
+                    <div class="action-selector">
+                        <label for="locatorType">Locator Type:</label>
+                        <select id="locatorType" class="select-input">
+                            <option value="xpath">XPath</option>
+                            <option value="id">ID</option>
+                            <option value="name">Name</option>
+                            <option value="class">Class</option>
+                            <option value="css">CSS Selector</option>
+                        </select>
+                    </div>
+
+                    <div class="xpath-selector" id="xpathSelectorContainer">
+                        <label for="xpathSelector">XPath Selector:</label>
+                        <select id="xpathSelector" class="select-input">
+                            <option value="">Choose an XPath...</option>
+                            <!-- XPath options will be populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="action-selector">
+                        <label for="actionType">Action:</label>
+                        <select id="actionType" class="select-input">
+                            <option value="click">Click Element</option>
+                            <option value="input">Input Text</option>
+                            <option value="clear">Clear Element Text</option>
+                            <option value="select">Select From List By Label</option>
+                            <option value="wait">Wait Until Element Is Visible</option>
+                            <option value="scroll">Scroll Element Into View</option>
+                            <option value="validate">Element Should Be Visible</option>
+                        </select>
+                    </div>
+
+                    <div class="input-value-container" id="inputValueContainer">
+                        <label for="inputValue">Input Value:</label>
+                        <input type="text" id="inputValue" placeholder="Enter value..." class="input-field">
+                    </div>
+
+                    <div class="step-buttons">
+                        <button id="addStepButton" class="action-button">Add Step</button>
+                        <button id="clearCurrentButton" class="action-button secondary">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="test-script-actions">
+                <button id="generateScriptButton" class="generate-button">
+                    <img src="icons\robotframework.svg" class="button-icon">
+                    <span class="button-text">Generate Robot Framework Script</span>
+                    <span class="button-model">using gemini-1.5-flash-latest</span>
+                </button>
+                <div class="secondary-actions">
+                    <button id="clearAllStepsButton" class="secondary-button">Clear All Steps</button>
+                    <button id="clearStorageButton" class="secondary-button" title="Clear all saved data including steps and element information">Clear Storage</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-script-output-container" id="testScriptOutputContainer">
+            <div class="output-header">
+                <h3>Generated Robot Framework Test Script</h3>
+            </div>
+            <div class="script-actions" id="scriptActions">
+                <button id="copyScriptButton"      class="btn copy-btn">
+                    <i class="fa-solid fa-copy"></i><span>Copy</span>
+                </button>
+                <button id="downloadScriptButton"  class="btn action-btn">
+                    <i class="fa-solid fa-download"></i><span>Download</span>
+                </button>
+                <button id="editScriptButton"      class="btn action-btn">
+                    <i class="fa-solid fa-pen"></i><span>Edit</span>
+                </button>
+                <button id="loadPreviousScriptsButton" class="btn highlight-btn glow-effect">
+                    <i class="fa-solid fa-clock-rotate-left"></i><span>Load Previous</span>
+                </button>                              
+                <button id="clearScriptButton"     class="btn secondary-btn">
+                    <i class="fa-solid fa-broom"></i><span>Clear</span>
+                </button>
+            </div>
+            
+            <!-- Add script persistence notification -->
+            <div id="scriptPersistenceNotice" class="script-persistence-notice">
+                <div class="info-icon">&#9432;</div>
+                <span class="notice-text">Generated scripts are automatically saved. Use <strong>Load Previous</strong> button to access previous scripts.</span>
+                <button class="close-notice" aria-label="Close">&#x2715;</button>
+            </div>
+            
+            <!-- Loading spinner for script generation -->
+            <div id="scriptLoading" class="loading-spinner" style="display: none;">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                </div>
+                <div class="generation-status">
+                    <span>Initializing gemini-1.5-flash-latest...</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Error message display -->
+            <div id="scriptError" class="error-message" style="display: none;">
+                Error generating script
+            </div>
+            
+            <!-- API Key Form -->
+            <div id="geminiApiKeyForm" class="api-key-form" style="display: none;">
+                <h4>Gemini API Key Required</h4>
+                <p>To generate Robot Framework scripts, you need to provide a Gemini API Key</p>
+                <div class="api-key-input">
+                    <input type="text" id="geminiApiKeyInput" placeholder="Enter your Gemini API Key..." class="input-field">
+                    <button id="saveGeminiApiKey" class="action-button">Save Key</button>
+                </div>
+                <div class="model-notice">
+                    <p><strong>Note:</strong> This extension uses the <code>gemini-1.5-flash-latest</code> model which may require:</p>
+                    <ul>
+                        <li>Special access permissions in Google AI Studio</li>
+                        <li>An approved API project with quotas enabled</li>
+                        <li>A billing account linked to your Google Cloud project</li>
+                    </ul>
+                    <p>If you encounter errors, try using a different API key or requesting access to the model in Google AI Studio.</p>
+                </div>
+                <p class="help-text">You can get a Gemini API key from <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></p>
+            </div>
+            
+            <!-- Script output (textarea instead of div for better copy support) -->
+            <textarea class="script-output" id="robotScriptResult" style="display: none;" readonly></textarea>
+            
+            <!-- Model info display -->
+            <div id="modelInfo" class="model-info" style="display: none;"></div>
+            
+            <!-- Script generation status display -->
+            <div id="scriptStatusContainer" class="script-status-container"></div>
+            
+            <!-- Original script output div (keeping for backward compatibility) -->
+            <div class="script-output" id="scriptOutput" style="display: none;">
+                <!-- Generated script will appear here -->
+            </div>
+        </div>
+        
+        <!-- Unique Identifiers (Highest Priority) -->
+        <div class="selector-group">
+            <h2>Unique Identifiers</h2>
+            <div id="uniqueXPathsContainer">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Specialized XPaths Section (High Priority) -->
+        <div class="selector-group">
+            <h2>Specialized XPaths</h2>
+            <div id="specializedXPathsContainer"></div>
+        </div>
+
+        <div class="selectors-container">
+            <!-- Form-specific Combinations (High Priority) -->
+            <div class="selector-group">
+                <h2>Form Element XPaths</h2>
+                <div id="formXPathsContainer" class="xpath-list">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Robust Combinations (Medium-High Priority) -->
+            <div class="selector-group">
+                <h2>Tag + Attribute Combinations</h2>
+                <div class="subgroup">
+                    <h3>Class-based</h3>
+                    <div id="classBasedContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Role-based</h3>
+                    <div id="roleBasedContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Text/Value-based</h3>
+                    <div id="textValueContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Complex Combinations (Medium Priority) -->
+            <div class="selector-group">
+                <h2>Multi-Attribute Combinations</h2>
+                <div class="subgroup">
+                    <h3>Class + Role + Text</h3>
+                    <div id="classRoleTextContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Class + Role + Value</h3>
+                    <div id="classRoleValueContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Class + Role + Index</h3>
+                    <div id="classRoleIndexContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Class + Text + Value</h3>
+                    <div id="classTextValueContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nested Role Combinations (Medium-Low Priority) -->
+            <div class="selector-group">
+                <h2>Nested Role XPaths</h2>
+                <div class="subgroup">
+                    <h3>Parent Role + Current Role</h3>
+                    <div id="parentRoleContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Role + Class/Text</h3>
+                    <div id="roleAttributeContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Multiple Parent Roles</h3>
+                    <div id="multipleRolesContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parent Context Combinations (Low Priority) -->
+            <div class="selector-group">
+                <h2>Parent Context XPaths</h2>
+                <div id="parentContextContainer" class="xpath-list">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Modern Relative Locators (Lowest Priority) -->
+            <div class="selector-group">
+                <h2>Relative Position XPaths</h2>
+                <div class="subgroup">
+                    <h3>Above/Below</h3>
+                    <div id="verticalRelativeContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Left/Right</h3>
+                    <div id="horizontalRelativeContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+                <div class="subgroup">
+                    <h3>Near Elements</h3>
+                    <div id="nearRelativeContainer" class="xpath-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html> 
